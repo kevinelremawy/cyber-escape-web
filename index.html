@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cyber Escape: Data Storm</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at top, #161b3d, #050816);
+      color: #f5f5ff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .game-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    #gameCanvas {
+      border-radius: 10px;
+      border: 1px solid rgba(120, 180, 255, 0.5);
+      background: radial-gradient(circle at top, #111633, #050816);
+      box-shadow: 0 0 30px rgba(0, 200, 255, 0.25);
+      max-width: 100%;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 800px;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    .hud span {
+      margin-right: 8px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    button {
+      background: linear-gradient(135deg, #48b1ff, #00ffa3);
+      color: #050816;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+      opacity: 0.95;
+    }
+
+    button:active {
+      transform: translateY(1px);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at top, rgba(5, 8, 22, 0.96), rgba(0, 0, 0, 0.96));
+      color: #f5f5ff;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .overlay h2 {
+      font-size: 1.6rem;
+      margin-bottom: 12px;
+    }
+
+    .overlay p {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      margin-bottom: 6px;
+    }
+
+    .stats {
+      margin-top: 10px;
+      font-size: 0.95rem;
+    }
+
+    .controls-hint {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      opacity: 0.8;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.4rem;
+      }
+      .subtitle {
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-wrapper">
+    <div style="position: relative;">
+      <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+      <!-- Start / Game Over overlay -->
+      <div id="overlay" class="overlay">
+        <h2 id="overlayTitle">Cyber Escape: Data Storm</h2>
+        <p id="overlayText">You are a rogue data packet trapped in a corrupted network.</p>
+        <p>Dodge red VIRUSES and collect blue DATA ORBS.</p>
+        <div class="controls-hint">
+          Controls: <strong>WASD</strong> or <strong>Arrow keys</strong> to move.
+        </div>
+        <div class="stats" id="overlayStats"></div>
+        <div class="btn-row">
+          <button id="startBtn">Start Game</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div>
+        <span>💾 Score: <span id="scoreDisplay">0</span></span>
+        <span>❤️ Health: <span id="healthDisplay">100</span></span>
+      </div>
+      <div>
+        <span>⚡ Level: <span id="levelDisplay">1</span></span>
+        <span>👾 Viruses: <span id="enemyDisplay">0</span></span>
+      </div>
+    </div>
+
+    <div class="subtitle">
+      Built with HTML5 Canvas &amp; JavaScript – perfect for GitHub Pages portfolio.
+    </div>
+  </div>
+
+  <script>
+    // --- Canvas setup ---
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // HUD elements
+    const scoreDisplay = document.getElementById("scoreDisplay");
+    const healthDisplay = document.getElementById("healthDisplay");
+    const levelDisplay = document.getElementById("levelDisplay");
+    const enemyDisplay = document.getElementById("enemyDisplay");
+
+    // Overlay UI
+    const overlay = document.getElementById("overlay");
+    const overlayTitle = document.getElementById("overlayTitle");
+    const overlayText = document.getElementById("overlayText");
+    const overlayStats = document.getElementById("overlayStats");
+    const startBtn = document.getElementById("startBtn");
+
+    const GAME_STATE = {
+      MENU: "menu",
+      PLAYING: "playing",
+      GAME_OVER: "game_over",
+    };
+
+    let currentState = GAME_STATE.MENU;
+
+    // --- Input ---
+    const keys = {};
+    window.addEventListener("keydown", (e) => {
+      keys[e.key.toLowerCase()] = true;
+      // prevent arrow keys from scrolling the page
+      if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    // --- Helper functions ---
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function rectsCollide(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    // --- Entity classes ---
+    class Player {
+      constructor() {
+        this.width = 32;
+        this.height = 32;
+        this.speed = 260;
+        this.reset();
+      }
+
+      reset() {
+        this.x = canvas.width / 2 - this.width / 2;
+        this.y = canvas.height - this.height - 40;
+        this.health = 100;
+      }
+
+      update(dt) {
+        let dx = 0;
+        let dy = 0;
+
+        if (keys["a"] || keys["arrowleft"]) dx -= 1;
+        if (keys["d"] || keys["arrowright"]) dx += 1;
+        if (keys["w"] || keys["arrowup"]) dy -= 1;
+        if (keys["s"] || keys["arrowdown"]) dy += 1;
+
+        const length = Math.hypot(dx, dy) || 1;
+        dx /= length;
+        dy /= length;
+
+        this.x += dx * this.speed * dt;
+        this.y += dy * this.speed * dt;
+
+        this.x = clamp(this.x, 0, canvas.width - this.width);
+        this.y = clamp(this.y, 0, canvas.height - this.height);
+      }
+
+      draw(ctx) {
+        // glow
+        ctx.save();
+        ctx.shadowColor = "#48b1ff";
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = "#48f3ff";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.restore();
+
+        // center dot
+        ctx.fillStyle = "#050816";
+        ctx.fillRect(this.x + 10, this.y + 10, this.width - 20, this.height - 20);
+      }
+
+      getBounds() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
+      }
+    }
+
+    class Virus {
+      constructor(speedMultiplier) {
+        this.width = 26;
+        this.height = 26;
+        this.x = Math.random() * (canvas.width - this.width);
+        this.y = -this.height;
+        this.baseSpeed = 90 + Math.random() * 60;
+        this.speed = this.baseSpeed * speedMultiplier;
+        this.damage = 18;
+      }
+
+      update(dt) {
+        this.y += this.speed * dt;
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.shadowColor = "#ff3366";
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = "#ff3355";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.restore();
+
+        ctx.strokeStyle = "#ffe5ee";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(this.x + 4, this.y + 4);
+        ctx.lineTo(this.x + this.width - 4, this.y + this.height - 4);
+        ctx.moveTo(this.x + this.width - 4, this.y + 4);
+        ctx.lineTo(this.x + 4, this.y + this.height - 4);
+        ctx.stroke();
+      }
+
+      isOffScreen() {
+        return this.y > canvas.height + this.height;
+      }
+
+      getBounds() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
+      }
+    }
+
+    class DataOrb {
+      constructor() {
+        this.radius = 9;
+        this.x = this.radius + Math.random() * (canvas.width - this.radius * 2);
+        this.y = -this.radius * 2;
+        this.speed = 80 + Math.random() * 50;
+        this.value = 25;
+      }
+
+      update(dt) {
+        this.y += this.speed * dt;
+      }
+
+      draw(ctx) {
+        ctx.save();
+        const gradient = ctx.createRadialGradient(
+          this.x, this.y, 2,
+          this.x, this.y, this.radius
+        );
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(0.4, "#7cf7ff");
+        gradient.addColorStop(1, "rgba(124,247,255,0)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      isOffScreen() {
+        return this.y > canvas.height + this.radius;
+      }
+
+      getBounds() {
+        return {
+          x: this.x - this.radius,
+          y: this.y - this.radius,
+          width: this.radius * 2,
+          height: this.radius * 2,
+        };
+      }
+    }
+
+    // --- Game variables ---
+    const player = new Player();
+    let viruses = [];
+    let orbs = [];
+    let score = 0;
+    let level = 1;
+    let elapsed = 0;
+    let enemySpawnTimer = 0;
+    let orbSpawnTimer = 0;
+    let speedMultiplier = 1;
+
+    function resetGame() {
+      player.reset();
+      viruses = [];
+      orbs = [];
+      score = 0;
+      level = 1;
+      elapsed = 0;
+      enemySpawnTimer = 0;
+      orbSpawnTimer = 0;
+      speedMultiplier = 1;
+      updateHUD();
+    }
+
+    function updateHUD() {
+      scoreDisplay.textContent = Math.floor(score);
+      healthDisplay.textContent = Math.max(0, Math.floor(player.health));
+      levelDisplay.textContent = level;
+      enemyDisplay.textContent = viruses.length;
+    }
+
+    // --- Game loop ---
+    let lastTime = 0;
+
+    function gameLoop(timestamp) {
+      const dt = (timestamp - lastTime) / 1000 || 0;
+      lastTime = timestamp;
+
+      if (currentState === GAME_STATE.PLAYING) {
+        update(dt);
+        draw();
+      } else {
+        // still redraw background so it looks nice behind the overlay
+        draw();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+      elapsed += dt;
+      score += dt * 10; // passive score gain
+
+      // Difficulty scaling
+      level = 1 + Math.floor(elapsed / 20);
+      speedMultiplier = 1 + elapsed / 40;
+
+      enemySpawnTimer += dt;
+      orbSpawnTimer += dt;
+
+      const enemySpawnInterval = Math.max(0.45, 1.1 - elapsed / 25);
+      const orbSpawnInterval = 1.5;
+
+      if (enemySpawnTimer >= enemySpawnInterval) {
+        viruses.push(new Virus(speedMultiplier));
+        enemySpawnTimer = 0;
+      }
+
+      if (orbSpawnTimer >= orbSpawnInterval) {
+        orbs.push(new DataOrb());
+        orbSpawnTimer = 0;
+      }
+
+      player.update(dt);
+
+      viruses.forEach(v => v.update(dt));
+      orbs.forEach(o => o.update(dt));
+
+      // Remove off-screen items
+      viruses = viruses.filter(v => !v.isOffScreen());
+      orbs = orbs.filter(o => !o.isOffScreen());
+
+      // Collisions
+      const pBounds = player.getBounds();
+
+      viruses.forEach((v) => {
+        if (rectsCollide(pBounds, v.getBounds())) {
+          player.health -= v.damage;
+          v.y = canvas.height + 999; // move off-screen, will be cleaned up
+        }
+      });
+
+      orbs.forEach((o) => {
+        if (rectsCollide(pBounds, o.getBounds())) {
+          score += o.value;
+          o.y = canvas.height + 999;
+        }
+      });
+
+      // Clean hit objects
+      viruses = viruses.filter(v => !v.isOffScreen());
+      orbs = orbs.filter(o => !o.isOffScreen());
+
+      if (player.health <= 0) {
+        endGame();
+      }
+
+      updateHUD();
+    }
+
+    function drawGrid() {
+      ctx.save();
+      ctx.strokeStyle = "rgba(120, 180, 255, 0.08)";
+      ctx.lineWidth = 1;
+
+      const gridSize = 40;
+      for (let x = 0; x < canvas.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function draw() {
+      // background
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, "#050816");
+      gradient.addColorStop(1, "#02040c");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawGrid();
+
+      // entities
+      orbs.forEach(o => o.draw(ctx));
+      viruses.forEach(v => v.draw(ctx));
+      player.draw(ctx);
+
+      // subtle top glow
+      ctx.save();
+      const g2 = ctx.createLinearGradient(0, 0, 0, 120);
+      g2.addColorStop(0, "rgba(72, 177, 255, 0.35)");
+      g2.addColorStop(1, "rgba(72, 177, 255, 0)");
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, canvas.width, 140);
+      ctx.restore();
+    }
+
+    function showOverlay(title, text, showStats) {
+      overlayTitle.textContent = title;
+      overlayText.textContent = text;
+
+      if (showStats) {
+        overlayStats.textContent = `Final score: ${Math.floor(score)}  •  Max level: ${level}`;
+      } else {
+        overlayStats.textContent = "";
+      }
+
+      overlay.style.display = "flex";
+    }
+
+    function hideOverlay() {
+      overlay.style.display = "none";
+    }
+
+    function startGame() {
+      resetGame();
+      currentState = GAME_STATE.PLAYING;
+      hideOverlay();
+    }
+
+    function endGame() {
+      currentState = GAME_STATE.GAME_OVER;
+      showOverlay(
+        "Signal Lost",
+        "Your data stream was corrupted by the virus storm.",
+        true
+      );
+      startBtn.textContent = "Play Again";
+    }
+
+    startBtn.addEventListener("click", () => {
+      startGame();
+    });
+
+    // Start the render loop
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
