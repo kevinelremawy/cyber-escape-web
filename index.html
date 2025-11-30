@@ -85,15 +85,21 @@
       transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.2s;
     }
 
-    button:hover {
+    button:hover:enabled {
       transform: translateY(-1px);
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
       opacity: 0.95;
     }
 
-    button:active {
+    button:active:enabled {
       transform: translateY(1px);
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
     }
 
     .overlay {
@@ -142,14 +148,13 @@
   </style>
 </head>
 <body>
- <body>
   <div class="game-wrapper">
+    <!-- Title visible while playing -->
     <h1>Cyber Escape: Data Storm</h1>
-    <p class="subtitle">Dodge viruses, collect data orbs, survive the storm.</p>
+    <p class="subtitle">Dodge red viruses, collect blue data orbs, survive the storm.</p>
 
     <div style="position: relative;">
       <canvas id="gameCanvas" width="800" height="500"></canvas>
-
 
       <!-- Start / Game Over overlay -->
       <div id="overlay" class="overlay">
@@ -167,7 +172,6 @@
     </div>
 
     <div class="hud">
-         <div class="hud">
       <div>
         <span>💾 Score: <span id="scoreDisplay">0</span></span>
         <span>❤️ Health: <span id="healthDisplay">100</span></span>
@@ -181,6 +185,9 @@
       </div>
     </div>
 
+    <div class="subtitle">
+      Built with HTML5 Canvas &amp; JavaScript – deployed via GitHub Pages.
+    </div>
   </div>
 
   <script>
@@ -200,16 +207,16 @@
     const overlayText = document.getElementById("overlayText");
     const overlayStats = document.getElementById("overlayStats");
     const startBtn = document.getElementById("startBtn");
+
+    // Pause button
     const pauseBtn = document.getElementById("pauseBtn");
 
-
     const GAME_STATE = {
-    MENU: "menu",
-    PLAYING: "playing",
-    PAUSED: "paused",
-    GAME_OVER: "game_over",
-  };
-
+      MENU: "menu",
+      PLAYING: "playing",
+      PAUSED: "paused",
+      GAME_OVER: "game_over",
+    };
 
     let currentState = GAME_STATE.MENU;
 
@@ -221,21 +228,13 @@
       if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) {
         e.preventDefault();
       }
+      // Optional: P key toggles pause
+      if (e.key.toLowerCase() === "p") {
+        togglePause();
+      }
     });
     window.addEventListener("keyup", (e) => {
       keys[e.key.toLowerCase()] = false;
-    });
-
-    pauseBtn.addEventListener("click", () => {
-    if (currentState === GAME_STATE.PLAYING) {
-    currentState = GAME_STATE.PAUSED;
-    pauseBtn.textContent = "Resume";
-      } else if (currentState === GAME_STATE.PAUSED) {
-    currentState = GAME_STATE.PLAYING;
-    pauseBtn.textContent = "Pause";
-    // prevent a huge dt jump when resuming
-    lastTime = performance.now();
-     }
     });
 
     // --- Helper functions ---
@@ -433,7 +432,7 @@
         update(dt);
         draw();
       } else {
-        // still redraw background so it looks nice behind the overlay
+        // still redraw background so it looks nice behind the overlay / pause
         draw();
       }
 
@@ -567,31 +566,48 @@
     function startGame() {
       resetGame();
       currentState = GAME_STATE.PLAYING;
+      pauseBtn.textContent = "Pause";
+      pauseBtn.disabled = false;
+      // avoid big dt jump
+      lastTime = performance.now();
       hideOverlay();
-    }
-  
-    function startGame() {
-    resetGame();
-    currentState = GAME_STATE.PLAYING;
-    pauseBtn.textContent = "Pause";
-    hideOverlay();
     }
 
     function endGame() {
-    currentState = GAME_STATE.GAME_OVER;
-    pauseBtn.textContent = "Pause";
-    showOverlay(
-    "Signal Lost",
-    "Your data stream was corrupted by the virus storm.",
-    true
-    );
-    startBtn.textContent = "Play Again";
+      currentState = GAME_STATE.GAME_OVER;
+      pauseBtn.textContent = "Pause";
+      pauseBtn.disabled = true;
+      showOverlay(
+        "Signal Lost",
+        "Your data stream was corrupted by the virus storm.",
+        true
+      );
+      startBtn.textContent = "Play Again";
     }
 
+    function togglePause() {
+      if (currentState === GAME_STATE.PLAYING) {
+        currentState = GAME_STATE.PAUSED;
+        pauseBtn.textContent = "Resume";
+      } else if (currentState === GAME_STATE.PAUSED) {
+        currentState = GAME_STATE.PLAYING;
+        pauseBtn.textContent = "Pause";
+        lastTime = performance.now(); // prevent massive dt
+      }
+    }
 
     startBtn.addEventListener("click", () => {
       startGame();
     });
+
+    pauseBtn.addEventListener("click", () => {
+      if (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.PAUSED) {
+        togglePause();
+      }
+    });
+
+    // initial: can't pause until a game has started
+    pauseBtn.disabled = true;
 
     // Start the render loop
     requestAnimationFrame(gameLoop);
